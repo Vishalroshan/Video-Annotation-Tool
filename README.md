@@ -45,8 +45,8 @@ cd checkpoints
 
 3. **Place the annotation script**:
 ```bash
-# Copy vid_9.py to segment-anything-2/vis_sam2/
-cp vid_9.py segment-anything-2/vis_sam2/
+# Copy annotation_tool.py to segment-anything-2/vis_sam2/
+cp annotation_tool.py segment-anything-2/vis_sam2/
 cd segment-anything-2/vis_sam2/
 ```
 
@@ -54,12 +54,12 @@ cd segment-anything-2/vis_sam2/
 
 ### Basic Command
 ```bash
-python vid_9.py <path_to_video.mp4>
+python annotation_tool.py <path_to_video.mp4>
 ```
 
 Or with a folder of frames:
 ```bash
-python vid_9.py <path_to_frames_folder>
+python annotation_tool.py <path_to_frames_folder>
 ```
 
 ### Workflow
@@ -218,7 +218,7 @@ segment-anything-2/
 │   └── sam2.1/
 │       └── sam2.1_hiera_l.yaml
 └── vis_sam2/
-    ├── vid_9.py (this script)
+    ├── annotation_tool.py (this script)
     ├── frames_from_video/ (temporary, auto-cleaned)
     └── output_video_masks/ (output)
 ```
