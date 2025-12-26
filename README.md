@@ -109,7 +109,7 @@ python annotation_tool.py <path_to_frames_folder>
 
 ## Object Categories
 
-The tool supports 24 pre-defined surgical object categories:
+The tool supports 24 pre-defined surgical object categories. Feel free to change them or add new ones:
 
 | ID | Object | ID | Object |
 |----|--------|----|--------|
