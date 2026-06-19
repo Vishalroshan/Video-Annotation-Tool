@@ -1,21 +1,23 @@
 # SAM2 Video Annotation Tool
 
-A powerful interactive tool for annotating surgical videos using Meta's Segment Anything Model 2 (SAM2). This tool processes videos in 100-frame batches with automatic mask propagation across batch boundaries.
+An interactive PyQt5-based tool for annotating surgical videos using Meta's Segment Anything Model 2 (SAM2). Videos are processed in 100-frame batches with automatic mask propagation across batch boundaries.
 
 ## Features
 
-- **Batch Processing**: Processes videos in 100-frame chunks to manage GPU memory efficiently
+- **PyQt5 GUI**: Native windowed interface with dockable object panel, scrub slider, and live terminal log
+- **Batch Processing**: 100-frame chunks to manage GPU memory efficiently
 - **Interactive Annotation**: Click-based point annotation for object segmentation
-- **Smart Propagation**: Automatically propagates masks from previous batches
-- **Frame-by-Frame Control**: Generate masks on individual frames or propagate through entire batches
-- **Auto-Save**: Automatically saves masks when moving between batches
-- **24 Pre-defined Objects**: Optimized for surgical operating room scenarios
+- **Smart Propagation**: Automatically carries masks from the last frame of one batch into the first frame of the next
+- **Frame-by-Frame Control**: Generate masks on a single frame (`R`) or propagate through the rest of the batch (`M`)
+- **Auto-Save**: Masks are saved automatically when advancing to the next batch
+- **Play/Pause**: Preview video with the Play button or Space key
+- **5 Pre-defined Objects**: Head Surgeon, Assistant Surgeon, Nurse, Tool 1, Tool 2
 
 ## Requirements
 
 ### Hardware
-- **GPU**: NVIDIA GPU with 24GB VRAM (tested on Quadro RTX 6000)
-- **RAM**: 125GB system RAM recommended
+- **GPU**: NVIDIA GPU with 24 GB VRAM (tested on Quadro RTX 6000)
+- **RAM**: 64 GB+ recommended
 - **Storage**: Sufficient space for video and output masks
 
 ### Software
@@ -25,7 +27,7 @@ A powerful interactive tool for annotating surgical videos using Meta's Segment 
 
 ### Python Dependencies
 ```bash
-pip install torch torchvision opencv-python pillow numpy
+pip install torch torchvision opencv-python pillow numpy PyQt5
 ```
 
 ## Installation
@@ -43,185 +45,151 @@ cd checkpoints
 ./download_ckpts.sh
 ```
 
-3. **Place the annotation script**:
+3. **Place the annotation script** anywhere — it searches for SAM2 checkpoints relative to its own location and common parent directories. Set `SAM2_ROOT` if it cannot be found automatically:
 ```bash
-# Copy annotation_tool.py to segment-anything-2/vis_sam2/
-cp annotation_tool.py segment-anything-2/vis_sam2/
-cd segment-anything-2/vis_sam2/
+export SAM2_ROOT=/path/to/segment-anything-2
 ```
 
 ## Usage
 
-### Basic Command
+### Launch
+
+Run without arguments and open a file from the menu:
 ```bash
-python annotation_tool.py <path_to_video.mp4>
+python annotation_tool.py
 ```
 
-Or with a folder of frames:
+Or pass a video / folder directly to open it on launch:
 ```bash
-python annotation_tool.py <path_to_frames_folder>
+python annotation_tool.py <video.mp4 | frames_folder>
 ```
 
-### Workflow
+### Opening Files
+
+Use **File → Open Video…** (`Ctrl+O`) or **File → Open Folder of Frames…** (`Ctrl+Shift+O`).  
+Supported video formats: `.mp4`, `.avi`, `.mkv`, `.mov`, `.webm`.  
+Supported image formats: `.jpg`, `.jpeg`, `.png`, `.bmp`, `.tif`, `.tiff`.
+
+### UI Layout
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Object Panel (dock)  │  Video display                  │
+│  ─────────────────    │                                 │
+│  Object Selection      │                                 │
+│  Batch info            │                                 │
+│  Object list           │                                 │
+│  Controls reference    │                                 │
+│  Terminal log box      │                                 │
+│                        ├─────────────────────────────────│
+│                        │  [< Prev] [Play] [Next >]       │
+│                        │  Step: [1]  ──slider──  [label] │
+│                        ├─────────────────────────────────│
+│                        │  [R:Run] [M:Prop] [T:Save]      │
+│                        │  [P:Prev Batch] [N:Next Batch]  │
+└─────────────────────────────────────────────────────────┘
+```
+
+- **Object Panel**: Select the active object, shows point counts and batch info. Terminal output is mirrored to the log box at the bottom.
+- **Controls Bar**: Frame scrubber, step size, play/pause, go-to field.
+- **SAM Toolbar**: SAM2 action buttons and live status message.
+
+### Annotation Workflow
 
 #### Batch 1 (Initial Annotation)
-1. **Add Points**: Left-click on objects in frame 0
-2. **Generate Masks**: Press `R` (Single frame) or click "Single" button
-3. **Propagate**: Press `M` or click "Batch" button to propagate through frames 0-99
-4. **Move to Next Batch**: Press `N` (auto-saves masks)
+1. **Select object** in the left panel (or press `A`/`Z`)
+2. **Add points**: left-click to include, middle-click to exclude
+3. **Generate mask**: press `R` — runs SAM2 on the current frame only
+4. **Propagate**: press `M` — propagates masks from the current frame forward through the batch
+5. **Advance**: press `N` — auto-saves masks and loads the next 100 frames
 
 #### Batch 2+ (With Previous Masks)
-1. **Review Masks**: Previous batch's masks automatically appear on frame 0
-2. **Option A - Good Masks**: Press `M` immediately to propagate
-3. **Option B - Need Corrections**: 
-   - Add correction points on any frame
-   - Press `R` to generate mask for that frame
-   - Navigate to other frames, repeat as needed
-   - Press `M` to propagate from current frame forward
-4. **Move to Next Batch**: Press `N` (auto-saves masks)
+1. Previous batch's last-frame masks appear on frame 0 automatically
+2. **Option A – masks look good**: press `M` immediately to propagate
+3. **Option B – corrections needed**:
+   - Navigate to the problem frame
+   - Add correction points and press `R`
+   - Press `M` to re-propagate from that frame forward (frames before it are preserved)
+4. Press `N` to advance
 
 ## Controls
 
-### Mouse Controls
-| Action | Description |
-|--------|-------------|
-| **Left Click** | Add positive point (include in mask) |
-| **Middle Click** | Add negative point (exclude from mask) |
-| **Shift + Click** | Remove nearest point |
+### Mouse
+| Action | Result |
+|--------|--------|
+| Left click | Add positive point (include in mask) |
+| Middle click | Add negative point (exclude from mask) |
+| Shift + left click | Remove nearest point |
 
-### Keyboard Shortcuts
+### Keyboard
 | Key | Action |
 |-----|--------|
-| **A / Z** | Switch to previous/next object |
-| **; / '** | Navigate backward/forward 1 frame |
-| **[ / ]** | Jump backward/forward 5 frames |
-| **R** | Run SAM2 on current frame only |
-| **M** | Merge & propagate from current frame forward |
-| **T** | Manually save masks (optional, auto-saves on batch change) |
-| **D** | Delete last point on current frame |
-| **N / P** | Next/previous batch |
-| **Q / ESC** | Quit application |
+| `A` / `Z` | Previous / next object |
+| `; ` / `'` | Navigate backward / forward by step |
+| `[` / `]` | Jump backward / forward by 5× step |
+| `,` / `.` | Decrease / increase step size |
+| `G` | Go to a specific global frame (dialog) |
+| `Space` | Play / pause |
+| `R` | Run SAM2 on current frame only |
+| `M` | Merge & propagate from current frame forward |
+| `T` | Save masks (prompts for folder name) |
+| `D` | Delete last point on current frame |
+| `N` / `P` | Next / previous batch |
 
-### On-Screen Buttons
-- **<<5** / **<1** / **1>** / **5>>**: Frame navigation
-- **Single**: Run SAM2 on current frame (same as `R`)
-- **Batch**: Propagate from current frame forward (same as `M`)
+### Menu
+| Menu item | Shortcut |
+|-----------|----------|
+| File → Open Video… | `Ctrl+O` |
+| File → Open Folder of Frames… | `Ctrl+Shift+O` |
+| File → Save Masks… | `Ctrl+S` |
 
 ## Object Categories
 
-The tool supports 24 pre-defined surgical object categories. Feel free to change them or add new ones:
+| # | Object | Colour |
+|---|--------|--------|
+| 1 | Head Surgeon | Green |
+| 2 | Assistant Surgeon | Blue |
+| 3 | Nurse | Red |
+| 4 | Tool 1 | Orange |
+| 5 | Tool 2 | Purple |
 
-| ID | Object | ID | Object |
-|----|--------|----|--------|
-| 1 | Patient | 13 | Drill |
-| 2 | Anesthetist | 14 | Hammer |
-| 3 | Assistant Surgeon | 15 | Instrument Table |
-| 4 | Circulator | 16 | Tracker |
-| 5 | Head Surgeon | 17 | Mako Robot |
-| 6 | MPS | 18 | Monitor |
-| 7 | Nurse | 19 | MPS Station |
-| 8 | Student | 20 | OT |
-| 9 | Unrelated Person | 21 | Saw |
-| 10 | Instrument | 22 | Secondary Table |
-| 11 | AE | 23 | Cementer |
-| 12 | C-Arm | 24 | Drape |
+To change the objects, edit `OBJ_NAMES` and `OBJ_COLORS_BGR` at the top of `annotation_tool.py`.
 
 ## Output
 
-### Default Location
-```
-segment-anything-2/vis_sam2/output_video_masks/
-```
+### Saving Masks
+Press `T` or use **File → Save Masks…** to choose an output folder name (default: `output_video_masks/` next to the script).  
+Masks are also auto-saved to `output_video_masks/` whenever you advance to the next batch with `N`.
 
 ### File Format
 - **Filename**: `frame_XXXXX_combined.png`
-- **Format**: PNG images with color-coded masks
-- **Naming**: Frame numbers are global across all batches
-
-### Color Coding
-Each object has a unique color for easy identification in the output masks.
-
-## Advanced Features
-
-### Frame-by-Frame Correction
-If you notice errors in the middle of a batch:
-1. Navigate to the problematic frame
-2. Add correction points
-3. Press `R` to generate mask for that frame only
-4. Press `M` to propagate forward (preserves all frames before current)
-
-### Forward-Only Propagation
-When you press `M` (Merge & Propagate):
-- Uses masks from current frame (or most recent annotated frame)
-- Propagates **only forward** to end of batch
-- **Preserves** all masks before current frame unchanged
-
-### Memory Management
-- **Batch Size**: 100 frames per batch
-- **GPU Memory**: ~8-12 GB for 100 Full HD frames
-- **Auto-cleanup**: Frames saved to disk are cleaned up between batches
+- **Format**: PNG, colour-coded by object
+- **Frame numbers**: global across all batches (e.g. batch 2 starts at `frame_00100_…`)
 
 ## Troubleshooting
 
-### "CUDA out of memory" Error
-- **Cause**: Video resolution too high for GPU
-- **Solution**: The tool is optimized for 100 frames at Full HD (1920×1080)
-
-### "dtype mismatch" Error
-- **Cause**: Mixed precision issue in SAM2
-- **Solution**: Already fixed with `torch.autocast()` in the code
-
-### Masks Not Propagating
-- **Check**: Ensure you pressed `R` to generate initial masks
-- **Check**: Press `M` to trigger propagation
-- **Tip**: Watch for console messages confirming propagation
-
-### Slow Performance
-- **Frame Saving**: Initial frame saving takes 3-5 seconds (normal)
-- **SAM2 Propagation**: ~1.3 it/s for 100 frames (~80 seconds total)
-- **Single Frame**: ~1-2 seconds per frame
-
-## Tips & Best Practices
-
-1. **Start Conservative**: Begin with 1-2 positive points per object
-2. **Use Negative Points**: Add negative points to exclude unwanted regions
-3. **Check Frame 99**: Always review last frame before moving to next batch
-4. **Incremental Corrections**: Use `R` for single-frame fixes rather than re-propagating entire batch
-5. **Regular Saves**: Although auto-save is enabled, manually save important work with `T`
-6. **Monitor GPU**: Watch `nvidia-smi` to ensure GPU memory is not maxing out
-
-## Known Limitations
-
-- **Video Length**: Very long videos (>20,000 frames) will have many batches
-- **Object Appearance Changes**: Large appearance changes may require manual correction
-- **Occlusions**: Heavy occlusions may need multiple correction points
-- **Real-time**: Not designed for real-time annotation (processing time ~1-2 min per 100 frames)
-
-## Technical Details
-
-### Architecture
-- **Image Predictor**: Used for single-frame mask generation (`R` key)
-- **Video Predictor**: Used for batch propagation (`M` key)
-- **Mask Format**: Boolean arrays (H×W) converted to uint8 for storage
-
-### Batch Boundary Handling
-- Last frame masks from batch N automatically copied to first frame of batch N+1
-- Masks converted to initialization prompts for SAM2 video predictor
-- Uses SAM2's `add_new_mask()` API for seamless propagation
-
-### File Structure
+### SAM2 checkpoint not found
+Set the `SAM2_ROOT` environment variable:
+```bash
+export SAM2_ROOT=/path/to/segment-anything-2
+python annotation_tool.py
 ```
-segment-anything-2/
-├── checkpoints/
-│   └── sam2.1_hiera_large.pt
-├── configs/
-│   └── sam2.1/
-│       └── sam2.1_hiera_l.yaml
-└── vis_sam2/
-    ├── annotation_tool.py (this script)
-    ├── frames_from_video/ (temporary, auto-cleaned)
-    └── output_video_masks/ (output)
-```
+
+### "CUDA out of memory"
+The tool is tested at Full HD (1920×1080). For 4K video, reduce `BATCH_SIZE` at the top of the script.
+
+### Masks look correct on screen but saved files are blank
+All saved masks are read from the same data the viewer uses (`objects_data`), so what you see is what is saved.
+
+### Slow propagation
+SAM2 saves the current batch frames to `./frames_from_video/` before propagation (~3–5 s for 100 frames, then ~80 s propagation at ~1.3 it/s on a Quadro RTX 6000).
+
+## Technical Notes
+
+- **Image predictor** (`R` key): `SAM2ImagePredictor` — fast, single frame
+- **Video predictor** (`M` key): `build_sam2_video_predictor` — full batch propagation
+- **Batch boundary**: last frame's masks from batch N are used as initialisation prompts (via `add_new_mask`) for batch N+1
+- **Mask storage**: boolean arrays (H×W) in `objects_data["masks"]`; separate `video_segments` dict used during propagation
 
 ## Citation
 
@@ -230,25 +198,17 @@ If you use this tool in your research, please cite SAM2:
 ```bibtex
 @article{ravi2024sam2,
   title={SAM 2: Segment Anything in Images and Videos},
-  author={Ravi, Nikhila and Gabeur, Valentin and Hu, Yuan-Ting and Hu, Ronghang and Ryali, Chaitanya and Ma, Tengyu and Khedr, Haitham and R{\"a}dle, Roman and Rolland, Chloe and Gustafson, Laura and Mintun, Eric and Pan, Junting and Alwala, Kalyan Vasudev and Carion, Nicolas and Wu, Chao-Yuan and Girshick, Ross and Doll{\'a}r, Piotr and Feichtenhofer, Christoph},
+  author={Ravi, Nikhila and Gabeur, Valentin and Hu, Yuan-Ting and Hu, Ronghang
+          and Ryali, Chaitanya and Ma, Tengyu and Khedr, Haitham and R{\"a}dle, Roman
+          and Rolland, Chloe and Gustafson, Laura and Mintun, Eric and Pan, Junting
+          and Alwala, Kalyan Vasudev and Carion, Nicolas and Wu, Chao-Yuan
+          and Girshick, Ross and Doll{\'a}r, Piotr and Feichtenhofer, Christoph},
   journal={arXiv preprint arXiv:2408.00714},
   year={2024}
 }
 ```
 
-## Support
-
-For issues related to:
-- **This tool**: Check console output for error messages
-- **SAM2**: Visit [SAM2 GitHub Issues](https://github.com/facebookresearch/segment-anything-2/issues)
-- **CUDA/GPU**: Verify with `nvidia-smi` and check PyTorch CUDA compatibility
-
-## License
-
-This tool follows SAM2's Apache 2.0 License. See SAM2 repository for details.
-
 ---
 
-**Version**: 1.0  
-**Last Updated**: October 2025  
-**Tested On**: Ubuntu 22.04, CUDA 11.4, Quadro RTX 6000 (24GB)
+**Last Updated**: June 2026  
+**Tested On**: Ubuntu 22.04, CUDA 11.4, Quadro RTX 6000 (24 GB)
